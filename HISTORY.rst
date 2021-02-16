@@ -2,6 +2,24 @@
 History
 =======
 
+1.0.0 (2021-02-14)
+------------------
+
+* First non-beta release
+* Minor formatting alterations
+* Improved README
+
+0.2.0 (2021-02-13)
+------------------
+
+* Fix numpy build dependencies to use oldest possible version, so that wheels are maximally compatible.
+* Don't support Python 3.5
+
+0.1.6 (2021-02-11)
+------------------
+
+* Fix build for numpy versions prior to 1.19
+
 0.1.5 (2021-02-10)
 ------------------
 
