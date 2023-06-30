@@ -15,7 +15,7 @@ This package may be used to evaluate MT2 in all its variants.
 This includes both symmetric and asymmetric MT2.
 MT2 is also known as the "stransverse mass".
 
-This package provides an interface to the bisection algorithm and C++ implementation of http://arxiv.org/abs/1411.4312.
+This package provides an interface to the bisection algorithm of http://arxiv.org/abs/1411.4312, via an implementation detailed below.
 The variable MT2 itself is described `here <http://arxiv.org/abs/hep-ph/9906349>`__.
 Related information may be found in papers relating to MT2 linked from `here <https://www.hep.phy.cam.ac.uk/~lester/mt2/index.html>`__.
 
@@ -95,6 +95,18 @@ This is the raw implementation as a `numpy ufunc <https://numpy.org/doc/stable/r
 Usage is the same as for ``mt2``, but it supports some additional arguments, like ``where``.
 The reader should refer to the numpy documentation for a description of these.
 
+Implementation
+**************
+
+The underlying implementation of the Lester-Nachman algorithm used in this package is by Rupert Tombs, found in ``src/mt2_bisect.h``.
+It provides results consistent with the implementation provided with http://arxiv.org/abs/1411.4312, but is 3x to 4x faster.
+Note that this does *not* implement the "deci-sectioning" described in the paper, since it is found to provide a more significant performance penalty in the majority of cases.
+Our version is also scale invariant, and is suitable for large ranges of input magnitude.
+
+The legacy implementation, as it appears on arXiv, is also wrapped and exposed as ``mt2_arxiv`` for those that wish to independently cross-check the re-implementation.
+If you find any discrepancies, please file a bug report!
+**We strongly encourage all users to use the primary** ``mt2`` **method, due to the higher performance and scale invariance.**
+
 Performance
 ***********
 
@@ -117,7 +129,7 @@ Please cite:
 * http://arxiv.org/abs/hep-ph/9906349, if you use MT2 in an academic paper, and
 * http://arxiv.org/abs/1411.4312 if you use this particular calculator.
 
-All files other than ``src/lester_mt2_bisect_v7.h`` are released under the MIT license.
+All files other than ``src/lester_mt2_bisect_v7.h`` and ``src/mt2_Lallyver2.h`` are released under the MIT license.
 
 
 Other implementations

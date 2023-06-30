@@ -2,7 +2,7 @@ from setuptools import Extension, setup
 
 import numpy
 
-__version__ = "1.0.0"
+__version__ = "1.2.0"
 
 with open("README.rst") as readme_file:
     readme = readme_file.read()
@@ -26,6 +26,7 @@ ext_modules = [
         ],
         include_dirs=[numpy.get_include()],
         language="c++",
+        extra_compile_args=["-std=c++11"],
     ),
 ]
 

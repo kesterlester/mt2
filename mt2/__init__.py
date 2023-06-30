@@ -3,17 +3,13 @@ from typing import Optional, Union
 import numpy
 
 # noinspection PyUnresolvedReferences
-from _mt2 import mt2_lally_ufunc, mt2_ufunc
+from _mt2 import mt2_lester_ufunc, mt2_tombs_ufunc
 
 __author__ = "Thomas Gillam"
 __email__ = "tpgillam@googlemail.com"
-__version__ = "1.0.0"
+__version__ = "1.2.0"
 
-__all__ = ["MT2_ERROR", "mt2", "mt2_ufunc"]
-
-# TODO This should be exposed in and imported from C++
-# The value that `mt2` will return in the event that no solution exists.
-MT2_ERROR = -1.0
+__all__ = ["mt2", "mt2_arxiv", "mt2_ufunc"]
 
 
 def mt2(
@@ -28,12 +24,11 @@ def mt2(
     m_invis_1: Union[float, numpy.ndarray],
     m_invis_2: Union[float, numpy.ndarray],
     desired_precision_on_mt2: Union[float, numpy.ndarray] = 0.0,
-    use_deci_sections_initially: Union[bool, numpy.ndarray] = True,
     *,
     out: Optional[numpy.ndarray] = None
 ) -> Union[float, numpy.ndarray]:
     """
-    Returns asymmetric mT2 (which is >=0), or MT2_ERROR if no solution exists.
+    Returns asymmetric mT2 (which is >=0), or a negative value if no solution exists.
 
     We broadcast over any arguments that are provided, following standard numpy
     conventions.
@@ -60,10 +55,6 @@ def mt2(
             within ±desiredPrecisionOnMT2.
             Note that by requesting precision of ±0.01 GeV on an MT2 value of 100 GeV
             can result in speedups of a factor of two to three.
-        use_deci_sections_initially: If true, interval is cut at the 10% point until
-            first acceptance, which gives a factor 3 increase in speed calculating
-            the kinematic minimum, but 3% slowdown for events in the bulk.
-            Is on (true) by default, but can be turned off by setting to false.
         out: If specified, an array into which the output will be placed.
             Must have dtype numpy.float64.
 
@@ -71,11 +62,52 @@ def mt2(
         MT2 calculated for all inputs. If an array, will have shape that is the result
         of broadcasting all inputs.
 
-        The value `MT2_ERROR` is returned for any element for which MT2 cannot be
-        computed; for example, this will occur if the arguments specify an infeasible
-        optimisation problem.
+        A negative value is returned for any element for which MT2 cannot be computed;
+        for example, this will occur if the arguments specify an infeasible optimisation
+        problem.
     """
-    return mt2_ufunc(
+    return mt2_tombs_ufunc(
+        m_vis_1,
+        px_vis_1,
+        py_vis_1,
+        m_vis_2,
+        px_vis_2,
+        py_vis_2,
+        px_miss,
+        py_miss,
+        m_invis_1,
+        m_invis_2,
+        desired_precision_on_mt2,
+        out,
+    )
+
+
+mt2_ufunc = mt2_tombs_ufunc
+
+
+def mt2_arxiv(
+    m_vis_1: Union[float, numpy.ndarray],
+    px_vis_1: Union[float, numpy.ndarray],
+    py_vis_1: Union[float, numpy.ndarray],
+    m_vis_2: Union[float, numpy.ndarray],
+    px_vis_2: Union[float, numpy.ndarray],
+    py_vis_2: Union[float, numpy.ndarray],
+    px_miss: Union[float, numpy.ndarray],
+    py_miss: Union[float, numpy.ndarray],
+    m_invis_1: Union[float, numpy.ndarray],
+    m_invis_2: Union[float, numpy.ndarray],
+    desired_precision_on_mt2: Union[float, numpy.ndarray] = 0.0,
+    use_deci_sections_initially: Union[bool, numpy.ndarray] = True,
+    *,
+    out: Optional[numpy.ndarray] = None
+) -> Union[float, numpy.ndarray]:
+    """
+    Provide an interface to the mt2 implementation of arXiv:1411.4312v7.
+
+    This is provided for historical reference and comparison purposes only; please use 
+    `mt2` for an equivalent implementation that is 3-4x faster.
+    """
+    return mt2_lester_ufunc(
         m_vis_1,
         px_vis_1,
         py_vis_1,
@@ -88,41 +120,5 @@ def mt2(
         m_invis_2,
         desired_precision_on_mt2,
         use_deci_sections_initially,
-        out,
-    )
-
-
-def mt2_lally(
-    m_vis_1: Union[float, numpy.ndarray],
-    px_vis_1: Union[float, numpy.ndarray],
-    py_vis_1: Union[float, numpy.ndarray],
-    m_vis_2: Union[float, numpy.ndarray],
-    px_vis_2: Union[float, numpy.ndarray],
-    py_vis_2: Union[float, numpy.ndarray],
-    px_miss: Union[float, numpy.ndarray],
-    py_miss: Union[float, numpy.ndarray],
-    m_invis_1: Union[float, numpy.ndarray],
-    m_invis_2: Union[float, numpy.ndarray],
-    desired_precision_on_mt2: Union[float, numpy.ndarray] = 0.0,
-    *,
-    out: Optional[numpy.ndarray] = None
-) -> Union[float, numpy.ndarray]:
-    """
-    Compute mT2 using the method and code by Colin Lally.
-
-    https://arxiv.org/abs/1509.01831
-    """
-    return mt2_lally_ufunc(
-        m_vis_1,
-        px_vis_1,
-        py_vis_1,
-        m_vis_2,
-        px_vis_2,
-        py_vis_2,
-        px_miss,
-        py_miss,
-        m_invis_1,
-        m_invis_2,
-        desired_precision_on_mt2,
         out,
     )

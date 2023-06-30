@@ -1,13 +1,15 @@
-"""Tests for the variant of MT2 by Colin Lally."""
+"""Tests for the variant of MT2 by Rupert Tombs."""
+
+from typing import Optional, Union
 
 import numpy
 import pytest
 
-from .common import mt2_lally, mt2_lester
+from .common import mt2_lester, mt2_tombs
 
 
 def test_simple_example():
-    computed_val = mt2_lally(100, 410, 20, 150, -210, -300, -200, 280, 100, 100)
+    computed_val = mt2_tombs(100, 410, 20, 150, -210, -300, -200, 280, 100, 100)
     assert computed_val == pytest.approx(412.628)
 
 
@@ -27,13 +29,12 @@ def test_near_massless():
     chi_a = 0
     chi_b = 0
 
-    computed_val = mt2_lally(
+    computed_val = mt2_tombs(
         m_vis_a, px_a, py_a, m_vis_b, px_b, py_b, px_miss, py_miss, chi_a, chi_b
     )
     assert computed_val == pytest.approx(0.09719971)
 
 
-@pytest.mark.skip(reason="Currently failing due to inconsistencies")
 def test_fuzz():
     batch_size = 100
     num_tests = 1000
@@ -69,6 +70,28 @@ def test_fuzz():
         )
 
         result_lester = mt2_lester(*args)
-        result_lally = mt2_lally(*args)
+        result_tombs = mt2_tombs(*args)
 
-        numpy.testing.assert_allclose(result_lester, result_lally, rtol=1e-12)
+        numpy.testing.assert_allclose(result_lester, result_tombs, rtol=1e-12)
+
+
+def test_scale_invariance():
+    example_args = numpy.array((100, 410, 20, 150, -210, -300, -200, 280, 100, 100))
+    example_val = mt2_tombs(*example_args)
+
+    # mt2 scales with its arguments; check over some orders of magnitude.
+    for i in range(-100, 100, 10):
+        scale = 10.0 ** i
+        with numpy.errstate(over="ignore"):
+            # Suppress overflow warnings when performing the evaluation; we're happy
+            # so long as we match approximately in the test below.
+            computed_val = mt2_tombs(*(example_args * scale))
+        assert computed_val == pytest.approx(example_val * scale)
+
+
+def test_negative_masses():
+    # Any negative mass is unphysical.
+    # These arguments use negative masses to make both initial bounds negative.
+    # Check that the result is neither positive nor an infinite loop.
+    computed_val = mt2_tombs(1, 2, 3, 4, 5, 6, 7, 8, -90, -100)
+    assert not (computed_val > 0)
