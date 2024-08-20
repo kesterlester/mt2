@@ -1,122 +1,124 @@
 name: Build
 
-on: [push, pull_request]
+on:
+    pull_request:
+    push:
+        branches: [main]
+        tags: ["*"]
+
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 
 jobs:
     test:
         runs-on: ubuntu-latest
         strategy:
             matrix:
-                python-version: [3.6, 3.7, 3.8, 3.9]
+                python-version: ['3.9', '3.10', '3.11', '3.12']
 
         steps:
-            - uses: actions/checkout@v1
-            - name: Set up Python ${{ matrix.python-version }}
-              uses: actions/setup-python@v2
-              with:
-                  python-version: ${{ matrix.python-version }}
-            - name: Install dependencies
+            - uses: actions/checkout@v4
+
+            - name: Install uv
+              run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+            - name: Install & activate
               run: |
-                  python -m pip install --upgrade pip
-                  pip install -U -r requirements_dev.txt
-                  pip install tox tox-gh-actions
-            - name: Test with tox
-              run: tox
+                uv sync --python ${{ matrix.python-version }}
+                . .venv/bin/activate
+                echo PATH=$PATH >> $GITHUB_ENV
+
+            - name: Test
+              run: python -m unittest discover tests
+
+            - name: Test with oldest-supported-numpy
+              run: |
+                uv pip install oldest-supported-numpy 
+                python -m unittest discover tests
 
     build_wheels:
-        name: Build wheel for cp${{ matrix.python }}-${{ matrix.platform_id }}-${{ matrix.manylinux_image }}
+        name: Build wheel for ${{ matrix.os }}-${{ matrix.build }}${{ matrix.python }}-${{ matrix.arch }}
         runs-on: ${{ matrix.os }}
         strategy:
             # Ensure that a wheel builder finishes even if another fails
             fail-fast: false
             matrix:
                 os: [windows-latest, ubuntu-latest, macos-latest]
-                python: [36, 37, 38, 39]
-                bitness: [32, 64]
-                manylinux_image: [manylinux1, manylinux2010]
-                include:
-                    # Run 32 and 64 bit version in parallel for Linux and Windows
-                    - os: windows-latest
-                      bitness: 64
-                      platform_id: win_amd64
-                    - os: windows-latest
-                      bitness: 32
-                      platform_id: win32
-                    - os: ubuntu-latest
-                      bitness: 64
-                      platform_id: manylinux_x86_64
-                    - os: ubuntu-latest
-                      bitness: 32
-                      platform_id: manylinux_i686
-                    - os: macos-latest
-                      bitness: 64
-                      platform_id: macosx_x86_64
+                python: [39, 310, 311, 312]
+                arch: [auto64, auto32, universal2]
+                build: ["cp"]
                 exclude:
-                    - os: macos-latest
-                      bitness: 32
-                    # Remove manylinux1 from the windows and osx build matrix since
-                    # manylinux_image is not used for these platforms
+                    - os: ubuntu-latest
+                      arch: universal2
                     - os: windows-latest
-                      manylinux_image: manylinux1
+                      arch: universal2
                     - os: macos-latest
-                      manylinux_image: manylinux1
+                      arch: auto32
         steps:
             - name: Checkout mt2
-              uses: actions/checkout@v2
+              uses: actions/checkout@v4
 
-            # Used to host cibuildwheel
-            - name: Setup Python
-              uses: actions/setup-python@v2
+            # Needed within cibuildwheel
+            - name: Install uv
+              run: curl -LsSf https://astral.sh/uv/install.sh | sh
 
-            - name: Install cibuildwheel
-              run: python -m pip install cibuildwheel==1.9.0
-
-            - name: Build wheels
+            - uses: pypa/cibuildwheel@v2.20.0
               env:
-                  CIBW_BUILD: cp${{ matrix.python }}-${{ matrix.platform_id }}
-                  CIBW_MANYLINUX_X86_64_IMAGE: ${{ matrix.manylinux_image }}
-                  CIBW_MANYLINUX_I686_IMAGE: ${{ matrix.manylinux_image }}
-              run: python -m cibuildwheel --output-dir wheelhouse
+                CIBW_BUILD_FRONTEND: "build[uv]"
+                CIBW_BUILD: "${{ matrix.build }}${{ matrix.python }}*"
+                CIBW_ARCHS: ${{ matrix.arch }}
+                CIBW_TEST_COMMAND: python -m unittest discover -t {project} -s {project}/tests
 
-            - uses: actions/upload-artifact@v2
+            - uses: actions/upload-artifact@v4
               with:
+                  name: "artifact-${{ matrix.os }}-${{ matrix.build }}-${{ matrix.python }}-${{ matrix.arch }}"
                   path: ./wheelhouse/*.whl
 
     build_sdist:
         name: Build source distribution
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v2
+            - uses: actions/checkout@v4
 
-            - uses: actions/setup-python@v2
-              name: Install Python
-              with:
-                  python-version: "3.8"
+            - name: Install uv
+              run: curl -LsSf https://astral.sh/uv/install.sh | sh
 
-            - name: Install numpy (imported by setup.py)
-              run: python -m pip install numpy
+            - name: Install environment & setuptools
+              run: |
+                uv sync
+                uv pip install setuptools
 
             - name: Build sdist
-              run: python setup.py sdist
+              run: uv run python setup.py sdist
 
-            - uses: actions/upload-artifact@v2
+            - uses: actions/upload-artifact@v4
               with:
+                  name: artifact-source
                   path: dist/*.tar.gz
 
+    pass:
+      needs: [test, build_wheels, build_sdist]
+      runs-on: ubuntu-latest
+      steps:
+        - run: echo "All jobs passed"
+
     upload_pypi:
-        needs: [build_wheels, build_sdist, test]
+        needs: [pass]
         runs-on: ubuntu-latest
         # upload to PyPI on every tag starting with 'v'
         if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
         # alternatively, to publish when a GitHub Release is created, use the following rule:
         # if: github.event_name == 'release' && github.event.action == 'published'
         steps:
-            - uses: actions/download-artifact@v2
+            - uses: actions/download-artifact@v4
               with:
-                  name: artifact
                   path: dist
+                  merge-multiple: true
 
-            - uses: pypa/gh-action-pypi-publish@master
+            - uses: pypa/gh-action-pypi-publish@release/v1
               with:
                   password: ${{ secrets.PYPI_API_TOKEN }}
                   # To test: repository_url: https://test.pypi.org/legacy/
